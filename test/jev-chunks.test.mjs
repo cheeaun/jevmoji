@@ -62,13 +62,14 @@ test("pickCategoriesFromScores prefers strong groups", () => {
   assert.ok(mixed.includes("travel") && mixed.includes("food"));
 });
 
-test("pickCategoriesFromScores skips empty categories", () => {
-  const counts = { other: 0, smileys: 171, people: 2418 };
+test("pickCategoriesFromScores skips empty and fans out when weak", () => {
+  const counts = { other: 0, smileys: 171, people: 2418, animals: 160 };
   const picked = pickCategoriesFromScores(
-    { other: 0.73, smileys: 0.47, people: 0.23 },
+    { other: 0.73, smileys: 0.47, people: 0.23, animals: 0.2 },
     { emojiCounts: counts }
   );
-  assert.deepEqual(picked, ["smileys"]);
+  assert.deepEqual(picked, ["smileys", "people", "animals"]);
+  assert.ok(!picked.includes("other"));
 });
 
 test("filterUsefulRatings returns score >= 1", () => {

@@ -8,6 +8,13 @@
  */
 
 import { errorPayload } from "./suggest-contract.js";
+import {
+  DEFAULT_RETRIEVE_LIMIT,
+  RETRIEVE_CATEGORY_ID,
+  RETRIEVE_CATEGORY_SCORE,
+  retrieveCandidates,
+  retrieveCategoryRow,
+} from "./retrieve.js";
 
 export const CHOICE_OPTION_LIMIT = 255;
 export const DEFAULT_PAGE_SIZE = 80;
@@ -18,7 +25,18 @@ export const STRONG_MATCH_SCORE = 2;
 export const MIN_API_SCORE = 1;
 export const MIN_FALLBACK_SCORE = 1;
 export const HARD_MAX_SUGGESTIONS = 50;
+export const WEAK_CATEGORY_FANOUT = 3;
+export const WEAK_LARGE_EMOJI_COUNT = 500;
+export const WEAK_LARGE_PAGE_CAP = 1;
 export const DEFAULT_PRICE_PER_MTOK = 0.042;
+
+export {
+  DEFAULT_RETRIEVE_LIMIT,
+  RETRIEVE_CATEGORY_ID,
+  RETRIEVE_CATEGORY_SCORE,
+  retrieveCandidates,
+  retrieveCategoryRow,
+};
 
 const REL_LEVELS = [
   "No relation to the text",
@@ -27,18 +45,20 @@ const REL_LEVELS = [
   "Strong, obvious match for the text",
 ];
 
+// Short group names for UI + optional boost scoring.
+// Routing does not depend on these — see js/retrieve.js.
 const CATEGORY_LABELS = {
   smileys: "Faces and emotions",
-  people: "People, bodies, jobs, gestures",
+  people: "People, bodies, gestures",
   animals: "Animals, plants, nature",
   food: "Food and drink",
-  travel: "Travel, vehicles, trains, places, weather while traveling",
-  activities: "Sports, games, parties, celebrations",
-  objects: "Tools, phones, clothes, household things",
-  symbols: "Marks, shapes, hearts, arrows",
+  travel: "Travel, places, vehicles",
+  activities: "Sports, games, parties",
+  objects: "Tools, phones, clothes",
+  symbols: "Marks, shapes, arrows",
   flags: "Flags",
-  component: "Emoji building parts (skin tones)",
-  other: "Does not fit the named groups",
+  component: "Emoji building parts",
+  other: "Other",
 };
 
 function emptyStats() {
@@ -148,9 +168,15 @@ export function categoryScoreQuestions(catalog) {
 export function emojiScoreQuestions(chunk) {
   const questions = {};
   for (const opt of chunk.options) {
+    const kws = Array.isArray(opt.keywords) ? opt.keywords.slice(0, 6).join(", ") : "";
+    const label = kws
+      ? `${opt.emoji} ("${opt.name}"; keywords: ${kws})`
+      : opt.name
+        ? `${opt.emoji} ("${opt.name}")`
+        : opt.emoji;
     questions[opt.emoji] = {
       type: "score",
-      instructions: `How well does the emoji ${opt.emoji} relate to \`state.text\`?`,
+      instructions: `How well does the emoji ${label} relate to \`state.text\`?`,
       criteria: REL_LEVELS,
     };
   }
@@ -161,6 +187,7 @@ export function pickCategoriesFromScores(categoryScores, {
   minScore = CATEGORY_MIN_SCORE,
   max = 5,
   emojiCounts = {},
+  weakMax = WEAK_CATEGORY_FANOUT,
 } = {}) {
   const ranked = Object.entries(categoryScores || {})
     .filter(([cat, p]) => Number.isFinite(p) && (emojiCounts[cat] ?? 0) > 0)
@@ -169,6 +196,12 @@ export function pickCategoriesFromScores(categoryScores, {
   const [topCat, topP] = ranked[0];
   const secondP = ranked[1]?.[1] ?? 0;
   if (topP >= 2.5 && topP >= secondP * 4) return [topCat];
+
+  // Weak top score: fan out to the best non-empty groups instead of one wrong pick.
+  if (topP < minScore) {
+    return ranked.slice(0, Math.min(weakMax, max)).map(([cat]) => cat);
+  }
+
   const picked = [];
   for (const [cat, p] of ranked) {
     if (picked.length === 0 || p >= minScore) picked.push(cat);
@@ -188,12 +221,18 @@ export function buildCategoryRows(categoryScores, selectedIds, allChunks, pageSi
   return Object.entries(categoryScores || {})
     .map(([id, score]) => {
       const emojiCount = byCat.get(id) ?? 0;
+      const rawPages = emojiCount ? Math.ceil(emojiCount / size) : 0;
+      // Huge groups with weak scores: one page only (avoids 30+ noise fetches).
+      const pages =
+        Number(score) < CATEGORY_MIN_SCORE && emojiCount > WEAK_LARGE_EMOJI_COUNT
+          ? Math.min(rawPages, WEAK_LARGE_PAGE_CAP)
+          : rawPages;
       return {
         id,
         score: Number(Number(score).toFixed(3)),
         selected: selected.has(id) && emojiCount > 0,
         emojiCount,
-        pages: emojiCount ? Math.ceil(emojiCount / size) : 0,
+        pages,
       };
     })
     .sort((a, b) => {
@@ -204,19 +243,26 @@ export function buildCategoryRows(categoryScores, selectedIds, allChunks, pageSi
 
 /** Ranking helper for tests — same rule as js/rank.js (> 2 first, else >= 1). */
 export function pickEmojisFromRatings(ratings) {
-  const ranked = (ratings || [])
-    .map((r) => ({
-      ...r,
-      combined:
-        (Math.max(0, r.categoryScore) / SCORE_TOP) *
-        (Math.max(0, r.emojiScore) / SCORE_TOP),
-    }))
-    .sort(
-      (a, b) =>
-        b.combined - a.combined ||
-        b.emojiScore - a.emojiScore ||
-        String(a.emoji).localeCompare(String(b.emoji))
-    );
+  const byEmoji = new Map();
+  for (const r of ratings || []) {
+    const combined =
+      (Math.max(0, r.categoryScore) / SCORE_TOP) *
+      (Math.max(0, r.emojiScore) / SCORE_TOP);
+    const prev = byEmoji.get(r.emoji);
+    if (
+      !prev ||
+      combined > prev.combined ||
+      (combined === prev.combined && r.emojiScore > prev.emojiScore)
+    ) {
+      byEmoji.set(r.emoji, { ...r, combined });
+    }
+  }
+  const ranked = [...byEmoji.values()].sort(
+    (a, b) =>
+      b.combined - a.combined ||
+      b.emojiScore - a.emojiScore ||
+      String(a.emoji).localeCompare(String(b.emoji))
+  );
   const strong = ranked.filter((r) => r.emojiScore > STRONG_MATCH_SCORE);
   const pool = strong.length
     ? strong
@@ -226,7 +272,10 @@ export function pickEmojisFromRatings(ratings) {
 
 /**
  * POST /api/categories
- * → { categories: [{ id, score, selected, emojiCount, pages }], pageSize, stats }
+ * → { categories: [{ id, score, selected, emojiCount, pages }], pageSize, stats, retrieval? }
+ *
+ * Always attaches a `retrieve` row when local name/keyword retrieval hits.
+ * That shortlist is the non-empty floor; category labels are boost only.
  */
 export async function suggestCategories(text, catalog, client, options = {}) {
   const pageSize = Number(options.pageSize || options.chunkSize || DEFAULT_PAGE_SIZE);
@@ -248,6 +297,9 @@ export async function suggestCategories(text, catalog, client, options = {}) {
   for (const c of allChunks) {
     emojiCounts[c.category] = (emojiCounts[c.category] || 0) + c.options.length;
   }
+
+  const retrieveLimit = Number(options.retrieveLimit || DEFAULT_RETRIEVE_LIMIT);
+  const shortlist = retrieveCandidates(trimmed, full, { limit: retrieveLimit });
 
   try {
     const res = await track.call(
@@ -277,10 +329,25 @@ export async function suggestCategories(text, catalog, client, options = {}) {
       .map(([id]) => id);
   }
 
+  const rows = buildCategoryRows(categoryScores, selectedIds, allChunks, pageSize);
+  const retrieveRow = retrieveCategoryRow(shortlist, pageSize);
+  if (retrieveRow.selected) {
+    rows.unshift(retrieveRow);
+  }
+
   return {
-    categories: buildCategoryRows(categoryScores, selectedIds, allChunks, pageSize),
+    categories: rows,
     pageSize,
     stats: track.stats(),
+    retrieval: {
+      count: shortlist.length,
+      limit: retrieveLimit,
+      top: shortlist.slice(0, 8).map((e) => ({
+        emoji: e.emoji,
+        name: e.name,
+        retrievalScore: e.retrievalScore,
+      })),
+    },
   };
 }
 
@@ -297,6 +364,7 @@ export function filterUsefulRatings(ratings, {
 /**
  * POST /api/emoji-batch
  * → { ratings: [{ emoji, emojiScore }], stats }
+ * category=retrieve scores the local shortlist; other ids score catalog groups.
  * Ratings with emojiScore >= 1 (client prefers > 2, falls back to >= 1).
  */
 export async function suggestEmojiBatch(
@@ -326,12 +394,26 @@ export async function suggestEmojiBatch(
 
   const model = options.model || DEFAULT_MODEL;
   const state = { text: trimmed };
-  const allChunks = options.chunks || buildChunks(full, options.chunkSize);
-  const emojis = [];
-  for (const chunk of allChunks) {
-    if (chunk.category !== category) continue;
-    for (const opt of chunk.options) emojis.push(opt);
+
+  let emojis = [];
+  if (category === RETRIEVE_CATEGORY_ID) {
+    const shortlist = retrieveCandidates(trimmed, full, {
+      limit: Number(options.retrieveLimit || DEFAULT_RETRIEVE_LIMIT),
+    });
+    emojis = shortlist.map((e) => ({
+      id: e.emoji,
+      emoji: e.emoji,
+      name: e.name,
+      keywords: e.keywords,
+    }));
+  } else {
+    const allChunks = options.chunks || buildChunks(full, options.chunkSize);
+    for (const chunk of allChunks) {
+      if (chunk.category !== category) continue;
+      for (const opt of chunk.options) emojis.push(opt);
+    }
   }
+
   const slice = emojis.slice((pageNo - 1) * size, pageNo * size);
   if (!slice.length) return { ratings: [], stats: emptyStats() };
 

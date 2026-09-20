@@ -14,6 +14,7 @@ npm install
 echo 'TYPESAFE_API_KEY=...' > .dev.vars
 npm run dev     # http://127.0.0.1:8787 (hard-coded in vite.config.js)
 npm test
+npm run probe -- "hello world"   # live pipeline: categories → batches → list
 npm run build
 npm run deploy
 npm run catalog # rebuild src/data/emojis.json (default Unicode 17.0.0)
@@ -25,7 +26,9 @@ npm run catalog # rebuild src/data/emojis.json (default Unicode 17.0.0)
 | --- | --- |
 | `index.html` + `js/` | Page + client ranking |
 | `public/` | Client static CSS/favicon only |
-| `scripts/build-emojis.mjs` | Generates slim `src/data/emojis.json` from Unicode |
+| `scripts/build-emojis.mjs` | Generates `src/data/emojis.json` (Unicode + emojibase keywords) |
+| `scripts/score-probe.mjs` | Live pipeline probe for one or more query strings |
+| `js/retrieve.js` | Local name/keyword shortlist (primary empty-result guard) |
 | `src/worker.js` + `src/data/emojis.json` | Worker + catalog (import only — not in `public/`) |
 | `README.md` | User-facing docs (install, usage, env) — no API contract |
 | `DESIGN.md` | Visual system / tokens |
@@ -46,7 +49,8 @@ Catalog notes:
 - Regenerate with `npm run catalog -- --unicode <ver|latest>`
 - Default pin **17.0.0**; URL layout changes at Unicode 17 (`Public/<ver>/emoji/`)
 - Do **not** put the catalog under `public/` — Vite would copy it into the client build
-- Slim entries: `{emoji, name, category, status}` — no keywords/hex/subgroup/id
+- Entries: `{emoji, name, category, status, keywords[]}` — keywords from emojibase + name tokens
+- Keywords feed `js/retrieve.js` local shortlisting (not category-label routing)
 - Runtime filter keeps `status === "fully-qualified"`
 
 ## API contract (private — agents only)
@@ -116,6 +120,8 @@ Notes:
 
 - `stats`: `{ elapsedMs, inputTokens, costUsd }` only
 - Batch `ratings`: only `emojiScore >= 1` (fallback pool)
+- Categories response may include a selected `retrieve` row + `retrieval` debug
+- `POST /api/emoji-batch` with `category: "retrieve"` scores the local name/keyword shortlist
 - Batch response does not echo `category` / `categoryScore` — client attaches them
 - Client pages selected categories in parallel; UI re-renders as each batch lands
 - Input max **40** characters (`js/suggest-contract.js`)
@@ -124,9 +130,12 @@ Notes:
 
 - Live list: prefer ratings with `emojiScore > 2`
 - If none, fall back to `emojiScore >= 1` (still ranked by score)
-- Ranked by `(categoryScore/3)×(emojiScore/3)`
+- Ranked by `(categoryScore/3)×(emojiScore/3)`; retrieve rows use categoryScore 2.5
 - Hard max **50**
-- Category selection skips empty categories (`emojiCount === 0`); empty groups are not scored or batched
+- **Primary routing:** `js/retrieve.js` name/keyword shortlist (scored via `category: "retrieve"`)
+- Category labels are boost/UI only — not the empty-result gate
+- Category selection still skips empty groups; weak top score fans out top 3 (secondary path)
+- Weak huge groups (`score < 1.5` and `emojiCount > 500`) batch only 1 page
 
 ## TypeSafe
 

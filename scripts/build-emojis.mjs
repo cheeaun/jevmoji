@@ -1,23 +1,21 @@
 #!/usr/bin/env node
 /**
- * Build src/data/emojis.json from Unicode emoji-test.txt.
+ * Build src/data/emojis.json from Unicode emoji-test.txt + emojibase keywords.
  *
  * Unicode moved emoji data paths after 16.0:
  *   ≤16.0  https://www.unicode.org/Public/emoji/<ver>/emoji-test.txt
  *   ≥17.0  https://www.unicode.org/Public/<ver>.0.0/emoji/emoji-test.txt
  *   latest https://www.unicode.org/Public/emoji/latest/emoji-test.txt
  *
- * Default pin is 17.0.0 — published, but not as bleeding-edge as 18.
- * Catalog lives under src/ (Worker import only) — not public/, which would
- * also copy it into the client build.
- * Keywords/hex/subgroup/id are omitted: the Worker only scores glyphs + category.
+ * Default pin is 17.0.0. Catalog lives under src/ (Worker import only).
+ * Entries: {emoji, name, category, status, keywords[]}.
+ * Keywords power js/retrieve.js local shortlisting — not TypeSafe category labels.
  *
  * Usage:
  *   node scripts/build-emojis.mjs
  *   node scripts/build-emojis.mjs --unicode 17.0.0
- *   node scripts/build-emojis.mjs --unicode 16.0
  *   node scripts/build-emojis.mjs --unicode latest
- *   node scripts/build-emojis.mjs --include-qualified   # also MQ + component
+ *   node scripts/build-emojis.mjs --include-qualified
  *   node scripts/build-emojis.mjs --out path/to/emojis.json
  */
 
@@ -28,6 +26,10 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_UNICODE = "17.0.0";
 const DEFAULT_OUT = path.join(ROOT, "src/data/emojis.json");
+const EMOJIBASE_URLS = [
+  "https://cdn.jsdelivr.net/npm/emojibase-data@16.0.1/en/data.json",
+  "https://cdn.jsdelivr.net/npm/emojibase-data@latest/en/data.json",
+];
 
 /** Unicode group header → catalog category id used by CATEGORY_LABELS. */
 const GROUP_TO_CATEGORY = {
@@ -180,17 +182,71 @@ function buildCatalog({ version, emojis, url, includeQualified }) {
   return {
     version: version || "unknown",
     source: includeQualified
-      ? `unicode.org emoji-test.txt (${url})`
-      : `unicode.org emoji-test.txt fully-qualified (${url})`,
+      ? `unicode.org emoji-test.txt (${url}) + emojibase keywords`
+      : `unicode.org emoji-test.txt fully-qualified (${url}) + emojibase keywords`,
     count: emojis.length,
     categories: CATEGORIES.filter((c) => c.id === "other" || present.has(c.id)),
-    emojis: emojis.map(({ emoji, name, category, status }) => ({
+    emojis: emojis.map(({ emoji, name, category, status, keywords }) => ({
       emoji,
       name,
       category,
       status,
+      keywords,
     })),
   };
+}
+
+/** emojibase en/data.json → Map<emoji, string[]> */
+async function fetchEmojibaseKeywords() {
+  for (const url of EMOJIBASE_URLS) {
+    try {
+      console.log(`Fetching keywords ${url}`);
+      const res = await fetch(url, {
+        headers: { "user-agent": "jevmoji-catalog-builder/1.0" },
+      });
+      if (!res.ok) {
+        console.log(`  → ${res.status}, trying next`);
+        continue;
+      }
+      const data = await res.json();
+      const map = new Map();
+      const rows = Array.isArray(data) ? data : data?.emojis || data?.data || [];
+      for (const row of rows) {
+        if (!row?.emoji) continue;
+        const tags = new Set();
+        for (const t of row.tags || []) if (t) tags.add(String(t).toLowerCase().trim());
+        for (const t of row.emoticon ? [row.emoticon] : []) {
+          // skip emoticons — not useful text keywords
+        }
+        if (row.label) {
+          for (const part of String(row.label).toLowerCase().split(/\s+/)) {
+            if (part.length >= 2) tags.add(part);
+          }
+        }
+        if (tags.size) map.set(row.emoji, [...tags]);
+      }
+      if (map.size > 100) {
+        console.log(`  keyword map ${map.size} emojis`);
+        return map;
+      }
+    } catch (err) {
+      console.log(`  failed: ${err.message || err}`);
+    }
+  }
+  console.log("  no emojibase keywords — names only");
+  return new Map();
+}
+
+function mergeKeywords(emojis, keywordMap) {
+  return emojis.map((e) => {
+    const fromMap = keywordMap.get(e.emoji) || [];
+    const fromName = String(e.name || "")
+      .toLowerCase()
+      .split(/[^a-z0-9']+/)
+      .filter((t) => t.length >= 2);
+    const set = new Set([...fromName, ...fromMap]);
+    return { ...e, keywords: [...set] };
+  });
 }
 
 async function main() {
@@ -206,9 +262,12 @@ async function main() {
     throw new Error("No emoji rows parsed — check the Unicode URL/version.");
   }
 
+  const keywordMap = await fetchEmojibaseKeywords();
+  const withKeywords = mergeKeywords(emojis, keywordMap);
+
   const catalog = buildCatalog({
     version,
-    emojis,
+    emojis: withKeywords,
     url,
     includeQualified: args.includeQualified,
   });
@@ -218,12 +277,14 @@ async function main() {
 
   const byStatus = {};
   const byCategory = {};
+  let withKw = 0;
   for (const e of catalog.emojis) {
     byStatus[e.status] = (byStatus[e.status] || 0) + 1;
     byCategory[e.category] = (byCategory[e.category] || 0) + 1;
+    if (e.keywords?.length) withKw += 1;
   }
   console.log(`Wrote ${args.out}`);
-  console.log(`  unicode ${catalog.version}  count ${catalog.count}`);
+  console.log(`  unicode ${catalog.version}  count ${catalog.count}  withKeywords ${withKw}`);
   console.log(`  status  ${JSON.stringify(byStatus)}`);
   console.log(`  category ${JSON.stringify(byCategory)}`);
 }

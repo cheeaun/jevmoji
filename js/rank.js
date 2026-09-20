@@ -14,30 +14,34 @@ export function scoreToPct(score) {
   return Number(((Math.max(0, Math.min(SCORE_TOP, s)) / SCORE_TOP) * 100).toFixed(1));
 }
 
-function rankRows(rows) {
-  return rows
-    .map((r) => ({
-      ...r,
-      combined:
-        (Math.max(0, r.categoryScore) / SCORE_TOP) *
-        (Math.max(0, r.emojiScore) / SCORE_TOP),
-    }))
-    .sort(
-      (a, b) =>
-        b.combined - a.combined ||
-        b.emojiScore - a.emojiScore ||
-        String(a.emoji).localeCompare(String(b.emoji))
-    );
-}
-
 /**
  * List rules:
  * 1) Prefer live scores > 2
  * 2) If none, fall back to scores >= 1 (still sorted by combined score)
  * 3) Hard max 50
+ * Same emoji from retrieve + category batches collapses to the best score.
  */
 export function pickEmojisFromRatings(ratings) {
-  const ranked = rankRows(ratings || []);
+  const byEmoji = new Map();
+  for (const r of ratings || []) {
+    const combined =
+      (Math.max(0, r.categoryScore) / SCORE_TOP) *
+      (Math.max(0, r.emojiScore) / SCORE_TOP);
+    const prev = byEmoji.get(r.emoji);
+    if (
+      !prev ||
+      combined > prev.combined ||
+      (combined === prev.combined && r.emojiScore > prev.emojiScore)
+    ) {
+      byEmoji.set(r.emoji, { ...r, combined });
+    }
+  }
+  const ranked = [...byEmoji.values()].sort(
+    (a, b) =>
+      b.combined - a.combined ||
+      b.emojiScore - a.emojiScore ||
+      String(a.emoji).localeCompare(String(b.emoji))
+  );
   const strong = ranked.filter((r) => r.emojiScore > STRONG_MATCH_SCORE);
   const pool = strong.length
     ? strong

@@ -27,7 +27,8 @@
     "preview": "vite build && vite preview",
     "deploy": "vite build && wrangler deploy",
     "test": "node --test test/*.test.mjs",
-    "catalog": "node scripts/build-emojis.mjs"
+    "catalog": "node scripts/build-emojis.mjs",
+    "probe": "node scripts/score-probe.mjs"
   },
   "engines": {
     "node": ">=20.19.0"
