@@ -9,6 +9,8 @@
 
 > Type up to 40 characters. Get related emojis scored by [TypeSafe](https://typesafe.ai/)’s [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) — many matches, not just one.
 
+**Source:** https://github.com/cheeaun/jevmoji
+
 ![Empty state](docs/screenshots/empty-state.png)
 
 ![Results for “smiling face”](docs/screenshots/results.png)
@@ -111,6 +113,7 @@ The Worker only needs glyph, name, category, and qualification status — so the
 
 ## Related
 
+- [Jevmoji on GitHub](https://github.com/cheeaun/jevmoji) - Source
 - [TypeSafe AI](https://typesafe.ai/) - System One models
 - [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) - Intro post
 - [Documentation](https://docs.typesafe.ai/)
