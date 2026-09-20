@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "description": "Type anything. Get related emojis scored 0–3 with Jev.",
-  "homepage": "https://github.com/cheeaun/jevmoji",
+  "homepage": "https://jevmoji.cheeaun.workers.dev",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cheeaun/jevmoji.git"

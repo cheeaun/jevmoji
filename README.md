@@ -9,6 +9,7 @@
 
 > Type up to 40 characters. Get related emojis scored by [TypeSafe](https://typesafe.ai/)’s [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) — many matches, not just one.
 
+**Live:** https://jevmoji.cheeaun.workers.dev\
 **Source:** https://github.com/cheeaun/jevmoji
 
 ![Empty state](docs/screenshots/empty-state.png)
@@ -113,6 +114,7 @@ The Worker only needs glyph, name, category, and qualification status — so the
 
 ## Related
 
+- [Live app](https://jevmoji.cheeaun.workers.dev) - Deployed Worker
 - [Jevmoji on GitHub](https://github.com/cheeaun/jevmoji) - Source
 - [TypeSafe AI](https://typesafe.ai/) - System One models
 - [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) - Intro post

@@ -2,6 +2,9 @@
 
 Vite + Cloudflare Worker emoji suggester. TypeSafe Score relevance; key never in the browser.
 
+**Live:** https://jevmoji.cheeaun.workers.dev\
+**Source:** https://github.com/cheeaun/jevmoji
+
 **API is intentionally undocumented in README** — do not publish request/response shapes there. Abuse of deployed keys costs real credits.
 
 ## Commands
