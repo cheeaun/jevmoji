@@ -520,7 +520,9 @@ body {
 .cat-table .cat-name {
   font-weight: 600;
   color: var(--ink);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 9rem;
 }
 
 .emoji-table .g {
@@ -560,6 +562,7 @@ body {
   font-size: 11px;
   line-height: 1.25;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .cat-cell-score {

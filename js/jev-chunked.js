@@ -20,14 +20,19 @@ export const CHOICE_OPTION_LIMIT = 255;
 export const DEFAULT_PAGE_SIZE = 80;
 export const DEFAULT_MODEL = "jev-latest";
 export const SCORE_TOP = 3;
-export const CATEGORY_MIN_SCORE = 1.5;
+export const CATEGORY_MIN_SCORE = 1;
 export const STRONG_MATCH_SCORE = 2;
 export const MIN_API_SCORE = 1;
 export const MIN_FALLBACK_SCORE = 1;
+export const MIN_LIST_SIZE = 15;
 export const HARD_MAX_SUGGESTIONS = 50;
 export const WEAK_CATEGORY_FANOUT = 3;
 export const WEAK_LARGE_EMOJI_COUNT = 500;
 export const WEAK_LARGE_PAGE_CAP = 1;
+/** Huge groups need this score before we page the full set. */
+export const HUGE_CATEGORY_FULL_SCORE = 2.5;
+/** Mid-score huge groups batch at most this many pages. */
+export const HUGE_CATEGORY_MID_PAGE_CAP = 2;
 export const DEFAULT_PRICE_PER_MTOK = 0.042;
 
 export {
@@ -222,11 +227,15 @@ export function buildCategoryRows(categoryScores, selectedIds, allChunks, pageSi
     .map(([id, score]) => {
       const emojiCount = byCat.get(id) ?? 0;
       const rawPages = emojiCount ? Math.ceil(emojiCount / size) : 0;
-      // Huge groups with weak scores: one page only (avoids 30+ noise fetches).
-      const pages =
-        Number(score) < CATEGORY_MIN_SCORE && emojiCount > WEAK_LARGE_EMOJI_COUNT
-          ? Math.min(rawPages, WEAK_LARGE_PAGE_CAP)
-          : rawPages;
+      const n = Number(score);
+      let pages = rawPages;
+      if (emojiCount > WEAK_LARGE_EMOJI_COUNT) {
+        if (n < CATEGORY_MIN_SCORE) {
+          pages = Math.min(rawPages, WEAK_LARGE_PAGE_CAP);
+        } else if (n < HUGE_CATEGORY_FULL_SCORE) {
+          pages = Math.min(rawPages, HUGE_CATEGORY_MID_PAGE_CAP);
+        }
+      }
       return {
         id,
         score: Number(Number(score).toFixed(3)),
@@ -241,7 +250,7 @@ export function buildCategoryRows(categoryScores, selectedIds, allChunks, pageSi
     });
 }
 
-/** Ranking helper for tests — same rule as js/rank.js (> 2 first, else >= 1). */
+/** Ranking helper for tests — same rule as js/rank.js. */
 export function pickEmojisFromRatings(ratings) {
   const byEmoji = new Map();
   for (const r of ratings || []) {
@@ -264,9 +273,13 @@ export function pickEmojisFromRatings(ratings) {
       String(a.emoji).localeCompare(String(b.emoji))
   );
   const strong = ranked.filter((r) => r.emojiScore > STRONG_MATCH_SCORE);
-  const pool = strong.length
-    ? strong
-    : ranked.filter((r) => r.emojiScore >= MIN_FALLBACK_SCORE);
+  let pool = strong;
+  if (pool.length < MIN_LIST_SIZE) {
+    const strongSet = new Set(strong.map((r) => r.emoji));
+    const need = MIN_LIST_SIZE - strong.length;
+    const rest = ranked.filter((r) => !strongSet.has(r.emoji));
+    pool = [...strong, ...rest.slice(0, need)];
+  }
   return pool.slice(0, HARD_MAX_SUGGESTIONS).map((r) => r.emoji);
 }
 

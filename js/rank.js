@@ -6,6 +6,7 @@
 export const SCORE_TOP = 3;
 export const STRONG_MATCH_SCORE = 2;
 export const MIN_FALLBACK_SCORE = 1;
+export const MIN_LIST_SIZE = 15;
 export const HARD_MAX_SUGGESTIONS = 50;
 
 export function scoreToPct(score) {
@@ -17,7 +18,8 @@ export function scoreToPct(score) {
 /**
  * List rules:
  * 1) Prefer live scores > 2
- * 2) If none, fall back to scores >= 1 (still sorted by combined score)
+ * 2) If that set is shorter than MIN_LIST_SIZE, pad with lower scores
+ *    (same ranking) until 15 or the rating pool is exhausted
  * 3) Hard max 50
  * Same emoji from retrieve + category batches collapses to the best score.
  */
@@ -43,9 +45,13 @@ export function pickEmojisFromRatings(ratings) {
       String(a.emoji).localeCompare(String(b.emoji))
   );
   const strong = ranked.filter((r) => r.emojiScore > STRONG_MATCH_SCORE);
-  const pool = strong.length
-    ? strong
-    : ranked.filter((r) => r.emojiScore >= MIN_FALLBACK_SCORE);
+  let pool = strong;
+  if (pool.length < MIN_LIST_SIZE) {
+    const strongSet = new Set(strong.map((r) => r.emoji));
+    const need = MIN_LIST_SIZE - strong.length;
+    const rest = ranked.filter((r) => !strongSet.has(r.emoji));
+    pool = [...strong, ...rest.slice(0, need)];
+  }
   return pool.slice(0, HARD_MAX_SUGGESTIONS).map((r) => r.emoji);
 }
 

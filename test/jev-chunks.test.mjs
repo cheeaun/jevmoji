@@ -85,7 +85,7 @@ test("filterUsefulRatings returns score >= 1", () => {
   assert.ok(out.every((r) => r.emojiScore >= 1));
 });
 
-test("pickEmojisFromRatings prefers score > 2, falls back to >= 1", () => {
+test("pickEmojisFromRatings prefers score > 2, pads to min 15", () => {
   const many = [];
   for (let i = 0; i < 60; i++) {
     many.push({ emoji: `S${i}`, emojiScore: 2.1, categoryScore: 3, category: "travel" });
@@ -102,15 +102,26 @@ test("pickEmojisFromRatings prefers score > 2, falls back to >= 1", () => {
     { emoji: "B", emojiScore: 2.2, categoryScore: 3, category: "travel" },
     { emoji: "W0", emojiScore: 1.5, categoryScore: 3, category: "travel" },
   ];
-  const mixed = pickEmojisFromRatings(few);
-  assert.deepEqual(mixed, ["A", "B"]);
+  // Only 3 ratings exist — return all, strong first.
+  assert.deepEqual(pickEmojisFromRatings(few), ["A", "B", "W0"]);
+
+  const pad = [];
+  pad.push({ emoji: "HI", emojiScore: 2.8, categoryScore: 3, category: "smileys" });
+  pad.push({ emoji: "H2", emojiScore: 2.1, categoryScore: 3, category: "smileys" });
+  for (let i = 0; i < 20; i++) {
+    pad.push({ emoji: `L${i}`, emojiScore: 1.2, categoryScore: 2, category: "objects" });
+  }
+  const padded = pickEmojisFromRatings(pad);
+  assert.equal(padded.length, 15);
+  assert.deepEqual(padded.slice(0, 2), ["HI", "H2"]);
+  assert.ok(padded.slice(2).every((e) => e.startsWith("L")));
 
   const fallback = [
     { emoji: "hi", emojiScore: 1.9, categoryScore: 3, category: "smileys" },
     { emoji: "mid", emojiScore: 1.4, categoryScore: 2, category: "smileys" },
     { emoji: "lo", emojiScore: 0.9, categoryScore: 2, category: "smileys" },
   ];
-  assert.deepEqual(pickEmojisFromRatings(fallback), ["hi", "mid"]);
+  assert.deepEqual(pickEmojisFromRatings(fallback), ["hi", "mid", "lo"]);
 });
 
 test("slim categories + emoji-batch payloads", async () => {

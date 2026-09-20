@@ -121,6 +121,7 @@ Notes:
 - `stats`: `{ elapsedMs, inputTokens, costUsd }` only
 - Batch `ratings`: only `emojiScore >= 1` (fallback pool)
 - Categories response may include a selected `retrieve` row + `retrieval` debug
+- UI labels that row **hits**; API / batch jobs still use id `retrieve`
 - `POST /api/emoji-batch` with `category: "retrieve"` scores the local name/keyword shortlist
 - Batch response does not echo `category` / `categoryScore` — client attaches them
 - Client pages selected categories in parallel; UI re-renders as each batch lands
@@ -129,13 +130,16 @@ Notes:
 ## List rules
 
 - Live list: prefer ratings with `emojiScore > 2`
-- If none, fall back to `emojiScore >= 1` (still ranked by score)
+- If that set is `< 15`, pad with lower-score ratings (same sort) until **15** or the pool is exhausted
 - Ranked by `(categoryScore/3)×(emojiScore/3)`; retrieve rows use categoryScore 2.5
 - Hard max **50**
+- API batch still returns `emojiScore >= 1` (padding source); weaker scores only if present in ratings
 - **Primary routing:** `js/retrieve.js` name/keyword shortlist (scored via `category: "retrieve"`)
 - Category labels are boost/UI only — not the empty-result gate
-- Category selection still skips empty groups; weak top score fans out top 3 (secondary path)
-- Weak huge groups (`score < 1.5` and `emojiCount > 500`) batch only 1 page
+- Category selection still skips empty groups; keep bar is `categoryScore >= 1`
+- If top category score `< 1`, fan out to top 3 non-empty groups
+- Huge groups (`emojiCount > 500`): `score < 1` → 1 page; `score < 2.5` → max 2 pages; else full
+- Compound query tokens prefer longer keyword/name pieces (`spiderman` → spider)
 
 ## TypeSafe
 

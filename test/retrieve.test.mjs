@@ -71,6 +71,66 @@ test("retrieveCandidates matches names and keywords", () => {
   assert.deepEqual(noHits, []);
 });
 
+test("retrieveCandidates prefers longer pieces inside compound tokens", () => {
+  const spiderCatalog = {
+    emojis: [
+      {
+        emoji: "🕷️",
+        name: "spider",
+        category: "animals",
+        status: "fully-qualified",
+        keywords: ["spider", "animal", "insect"],
+      },
+      {
+        emoji: "👨",
+        name: "man",
+        category: "people",
+        status: "fully-qualified",
+        keywords: ["man", "adult", "bro"],
+      },
+      {
+        emoji: "🏃",
+        name: "man running",
+        category: "people",
+        status: "fully-qualified",
+        keywords: ["man", "running", "fast"],
+      },
+    ],
+  };
+  const hits = retrieveCandidates("spiderman", spiderCatalog, { limit: 5 });
+  assert.ok(hits.length >= 1);
+  assert.equal(hits[0]?.emoji, "🕷️");
+});
+
+test("buildCategoryRows caps huge mid-score groups", async () => {
+  const { buildCategoryRows } = await import("../js/jev-chunked.js");
+  const chunks = [];
+  for (let i = 0; i < 2418; i++) {
+    chunks.push({ category: "people", options: [{ emoji: `p${i}` }] });
+  }
+  for (let i = 0; i < 160; i++) {
+    chunks.push({ category: "animals", options: [{ emoji: `a${i}` }] });
+  }
+  const rows = buildCategoryRows(
+    { people: 1.55, animals: 1.05 },
+    ["people", "animals"],
+    chunks,
+    80
+  );
+  const people = rows.find((r) => r.id === "people");
+  const animals = rows.find((r) => r.id === "animals");
+  assert.equal(people.pages, 2);
+  assert.equal(animals.pages, 2);
+
+  const strongPeople = buildCategoryRows(
+    { people: 2.8 },
+    ["people"],
+    chunks,
+    80
+  ).find((r) => r.id === "people");
+  assert.equal(strongPeople.pages, Math.ceil(2418 / 80));
+});
+
 test("retrieveCategoryRow is selected only when shortlist non-empty", () => {
   const empty = retrieveCategoryRow([], 80);
   assert.equal(empty.selected, false);
@@ -153,5 +213,7 @@ test("pickEmojisFromRatings dedupes retrieve + category overlap", () => {
     { emoji: "👋", emojiScore: 2.08, categoryScore: 0.22, category: "people" },
     { emoji: "🗺️", emojiScore: 1.72, categoryScore: 2.5, category: "retrieve" },
   ]);
-  assert.deepEqual(list, ["👋"]);
+  // 1 strong + pad lower-score map to the min list floor.
+  assert.equal(list[0], "👋");
+  assert.ok(list.includes("🗺️"));
 });

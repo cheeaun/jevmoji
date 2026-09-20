@@ -16,6 +16,14 @@
 
 ![Results for “smiling face”](docs/screenshots/results.png)
 
+## Score trace: “hits”
+
+Under **OUTPUT → score trace**, categories list the emoji groups Jev scored. You may also see a row labeled **hits**.
+
+That row is not a Unicode emoji category. It is a shortlist the app builds in code by matching your text against emoji **names and keywords** (for example `spiderman` → spider / web). Those candidates are then scored like everything else. The **Emoji→pages** cell stays blank for hits because that column is for paging large catalog groups, not a keyword shortlist.
+
+If hits is missing, local matching found nothing useful — the list still comes from the scored categories.
+
 ## Install
 
 ```sh
@@ -39,7 +47,8 @@ http://127.0.0.1:8787
 | `npm test` | Unit tests (`node --test`) |
 | `npm run build` | Production build to `dist/` |
 | `npm run deploy` | `vite build` + `wrangler deploy` |
-| `npm run catalog` | Rebuild `src/data/emojis.json` from Unicode |
+| `npm run catalog` | Rebuild `src/data/emojis.json` from Unicode + emojibase keywords |
+| `npm run probe` | Live pipeline probe for a query string (needs a key) |
 
 ## Secrets
 
@@ -97,7 +106,7 @@ npm run catalog -- --include-qualified   # also minimally-qualified + components
 
 Default is **17.0.0**: newer than 16, less brand-new than 18 (fonts often lag). Older versions (≤16) live under `unicode.org/Public/emoji/<ver>/`; 17+ live under `unicode.org/Public/<ver>/emoji/`. The script resolves that split for you.
 
-The Worker only needs glyph, name, category, and qualification status — so the generator drops keywords, hex, subgroup, and ids to keep the Worker bundle smaller.
+Each entry keeps `emoji`, `name`, `category`, `status`, and `keywords[]` (emojibase tags + name tokens). Keywords power the local **hits** shortlist; hex, subgroup, and ids are omitted to keep the Worker bundle smaller.
 
 ## Project structure
 
@@ -107,6 +116,8 @@ The Worker only needs glyph, name, category, and qualification status — so the
 | `public/` | Client static assets (styles, favicon) — no catalog |
 | `src/worker.js` + `src/data/` | Worker + generated emoji catalog |
 | `scripts/build-emojis.mjs` | Catalog generator |
+| `scripts/score-probe.mjs` | Live pipeline probe (`npm run probe`) |
+| `js/retrieve.js` | Local name/keyword shortlist behind the **hits** row |
 | `design/` | Logo source + export sizes |
 | `docs/screenshots/` | README screenshots |
 | `AGENTS.md` | Contributor / agent notes (includes private API contract) |

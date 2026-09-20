@@ -10,6 +10,13 @@ import {
   mergeStats,
   emptyStats,
 } from "./rank.js";
+import { RETRIEVE_CATEGORY_ID, RETRIEVE_CATEGORY_LABEL } from "./retrieve.js";
+
+/** Display labels for synthetic category ids; API still uses raw ids. */
+function categoryLabel(id) {
+  if (id === RETRIEVE_CATEGORY_ID) return RETRIEVE_CATEGORY_LABEL;
+  return id || "—";
+}
 
 const input = document.getElementById("text-input");
 const button = document.getElementById("suggest-btn");
@@ -98,12 +105,15 @@ function renderCategoriesAndPlan(detail, note, completedPages) {
 
   const catRows = all
     .map((c) => {
-      const pagesCell = c.selected
-        ? `${c.emojiCount}→${c.pages}`
-        : "—";
+      const isRetrieve = c.id === RETRIEVE_CATEGORY_ID;
+      const pagesCell = !c.selected
+        ? "—"
+        : isRetrieve
+          ? ""
+          : `${c.emojiCount}→${c.pages}`;
       return `<tr class="${c.selected ? "is-selected" : ""}">
         <td>${c.selected ? "✓" : ""}</td>
-        <td class="cat-name">${c.id}</td>
+        <td class="cat-name">${categoryLabel(c.id)}</td>
         <td class="num">${pct(c.score)}</td>
         <td class="num">${pagesCell}</td>
       </tr>`;
@@ -175,7 +185,7 @@ function renderEmojiTable(ratings) {
           const catCells =
             i === 0
               ? `<th scope="rowgroup" rowspan="${rows.length}" class="cat-cell">
-                   <div class="cat-cell-name">${category}</div>
+                   <div class="cat-cell-name">${categoryLabel(category)}</div>
                    <div class="cat-cell-score">
                      <span class="pct">${catPct}</span>
                      <span class="raw muted">(${catRaw})</span>

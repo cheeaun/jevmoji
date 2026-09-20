@@ -5,6 +5,8 @@
 
 export const DEFAULT_RETRIEVE_LIMIT = 40;
 export const RETRIEVE_CATEGORY_ID = "retrieve";
+/** UI label for the synthetic retrieve row (API still uses the id). */
+export const RETRIEVE_CATEGORY_LABEL = "hits";
 /** Category boost used when ranking retrieved candidates. */
 export const RETRIEVE_CATEGORY_SCORE = 2.5;
 
@@ -65,11 +67,21 @@ export function retrieveCandidates(text, catalog, { limit = DEFAULT_RETRIEVE_LIM
       if (name === t) score += 6;
       else if (nameTokens.includes(t)) score += 4;
       else if (t.length >= 3 && name.includes(t)) score += 2;
+      else if (t.length >= 4) {
+        // Compound query ("spiderman"): prefer longer name pieces inside the token.
+        let bestName = 0;
+        for (const n of nameTokens) {
+          if (n.length >= 3 && t.includes(n) && n.length > bestName) bestName = n.length;
+        }
+        if (bestName) score += 2 + bestName;
+      }
 
       for (const k of kws) {
         if (k === t) score += 5;
-        else if (k.length >= 3 && t.length >= 3 && (k.includes(t) || t.includes(k))) {
-          score += 2;
+        else if (k.length >= 3 && t.length >= 3) {
+          // Longer keyword inside the query beats short ones like "man".
+          if (t.includes(k)) score += 2 + k.length;
+          else if (k.includes(t)) score += 2 + t.length;
         }
       }
     }
