@@ -22,6 +22,7 @@ Jevmoji is a thin client over TypeSafe’s Jev (System One scores 0–3). Users 
 | `--muted` | `#858585` | Meta, placeholders, idle status |
 | `--line` | `#C4C4C4` | Hairline secondary rules inside panels |
 | `--accent` | `#F386A1` | Primary CTA fill, focus, selected rows, pending blocks |
+| `--on-accent` | `#1E1E1E` | Text on accent CTA — stays dark in both schemes (legibility) |
 | `--ok` | `#03AA5C` | Completed fetch blocks, success ticks |
 | `--err` | `#B42318` | Error status only |
 | `--radius-panel` | `0` | Window corners — square, terminal chrome |
