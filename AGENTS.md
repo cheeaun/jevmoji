@@ -1,0 +1,139 @@
+# jevmoji
+
+Vite + Cloudflare Worker emoji suggester. TypeSafe Score relevance; key never in the browser.
+
+**API is intentionally undocumented in README** — do not publish request/response shapes there. Abuse of deployed keys costs real credits.
+
+## Commands
+
+```bash
+npm install
+echo 'TYPESAFE_API_KEY=...' > .dev.vars
+npm run dev     # http://127.0.0.1:8787 (hard-coded in vite.config.js)
+npm test
+npm run build
+npm run deploy
+npm run catalog # rebuild src/data/emojis.json (default Unicode 17.0.0)
+```
+
+## Layout
+
+| Path | Role |
+| --- | --- |
+| `index.html` + `js/` | Page + client ranking |
+| `public/` | Client static CSS/favicon only |
+| `scripts/build-emojis.mjs` | Generates slim `src/data/emojis.json` from Unicode |
+| `src/worker.js` + `src/data/emojis.json` | Worker + catalog (import only — not in `public/`) |
+| `README.md` | User-facing docs (install, usage, env) — no API contract |
+| `DESIGN.md` | Visual system / tokens |
+| `design/` | Logo source (`logo.svg`) + export sizes |
+| `docs/screenshots/` | README images — **mobile-first**, not desktop |
+
+## README screenshots
+
+- Capture at a **phone viewport** (use **390×844**, CSS pixels) — not 1280px desktop
+- Paths: `docs/screenshots/empty-state.png`, `docs/screenshots/results.png`
+- Empty: default page, no query. Results: live query for **smiling face**, wait until status is `Done`
+- Crop empty-state to the UI (drop dead space under OUTPUT); keep results showing OUTPUT + score trace
+- Optimize PNG (palette/optimize ok); keep text readable
+- Source is a local run on port **8787** with a real key in `.dev.vars`
+
+Catalog notes:
+
+- Regenerate with `npm run catalog -- --unicode <ver|latest>`
+- Default pin **17.0.0**; URL layout changes at Unicode 17 (`Public/<ver>/emoji/`)
+- Do **not** put the catalog under `public/` — Vite would copy it into the client build
+- Slim entries: `{emoji, name, category, status}` — no keywords/hex/subgroup/id
+- Runtime filter keeps `status === "fully-qualified"`
+
+## API contract (private — agents only)
+
+Do not copy these examples into README.
+
+### `POST /api/categories`
+
+Request:
+
+```json
+{"text": "train"}
+```
+
+Response:
+
+```json
+{
+  "categories": [
+    {
+      "id": "travel",
+      "score": 2.99,
+      "selected": true,
+      "emojiCount": 221,
+      "pages": 3
+    }
+  ],
+  "pageSize": 80,
+  "stats": {
+    "elapsedMs": 806,
+    "inputTokens": 1005,
+    "costUsd": 0.00004221
+  }
+}
+```
+
+### `POST /api/emoji-batch`
+
+Request:
+
+```json
+{
+  "text": "train",
+  "category": "travel",
+  "categoryScore": 2.99,
+  "page": 1,
+  "pageSize": 80
+}
+```
+
+Response:
+
+```json
+{
+  "ratings": [
+    {"emoji": "🚆", "emojiScore": 2.99}
+  ],
+  "stats": {
+    "elapsedMs": 800,
+    "inputTokens": 12000,
+    "costUsd": 0.0005
+  }
+}
+```
+
+Notes:
+
+- `stats`: `{ elapsedMs, inputTokens, costUsd }` only
+- Batch `ratings`: only `emojiScore >= 1` (fallback pool)
+- Batch response does not echo `category` / `categoryScore` — client attaches them
+- Client pages selected categories in parallel; UI re-renders as each batch lands
+- Input max **40** characters (`js/suggest-contract.js`)
+
+## List rules
+
+- Live list: prefer ratings with `emojiScore > 2`
+- If none, fall back to `emojiScore >= 1` (still ranked by score)
+- Ranked by `(categoryScore/3)×(emojiScore/3)`
+- Hard max **50**
+- Category selection skips empty categories (`emojiCount === 0`); empty groups are not scored or batched
+
+## TypeSafe
+
+- `@typesafe-ai/sdk` in the Worker only
+- Score 0–3; cost `inputTokens/1e6 × $0.042` (`TYPESAFE_PRICE_PER_MTOK`)
+
+## Dev notes
+
+- Port **8787** — do not use Vite default 5173
+- Secrets: `.dev.vars` locally, Wrangler secret in production — never `.env`, never client JS
+- No mock ranker, no `/api/health`, no Node `server/` process
+- Custom instruction: reply in English; no lab jargon
+- **Do not document `/api/*` in README**

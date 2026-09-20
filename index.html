@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jevmoji</title>
+    <meta name="description" content="Type anything. Get related emojis scored 0–3 with Jev." />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <img class="brand-logo" src="/logo.svg" width="28" height="28" alt="" />
+          <span class="wordmark">Jevmoji</span>
+        </div>
+        <span class="topbar-meta">type anything · scored emojis</span>
+      </header>
+
+      <main class="page">
+        <section class="win win-input" aria-labelledby="input-title">
+          <div class="win-title">
+            <span id="input-title">INPUT</span>
+            <span class="win-meta">Type anything · scored emojis · max 40 · score &gt; 2 · cap 50</span>
+          </div>
+          <div class="win-body">
+            <p class="lede">
+              Type a phrase. Categories and emojis are scored, then ranked by mix.
+            </p>
+            <div class="row">
+              <input
+                id="text-input"
+                type="text"
+                maxlength="40"
+                placeholder="rainy coffee morning"
+                spellcheck="false"
+                autocomplete="off"
+                enterkeyhint="go"
+                aria-label="Phrase to score"
+              />
+              <button id="suggest-btn" type="button" disabled>Suggest</button>
+            </div>
+            <p id="status" class="status" role="status"></p>
+            <p id="stats" class="stats" hidden></p>
+          </div>
+        </section>
+
+        <section class="win win-output" aria-labelledby="output-title">
+          <div class="win-title">
+            <span id="output-title">OUTPUT</span>
+            <span class="win-meta">EMOJI</span>
+          </div>
+          <div class="win-body">
+            <div id="suggestions" class="suggestions" aria-live="polite">
+              <p class="empty-hint">awaiting input</p>
+            </div>
+          </div>
+        </section>
+
+        <div id="detail" class="detail win-detail" hidden></div>
+      </main>
+
+      <footer class="foot">
+        <span>Jevmoji</span>
+        <span>type anything · scored emojis</span>
+      </footer>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>

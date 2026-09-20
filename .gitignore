@@ -1,0 +1,13 @@
+# Dependencies / build (created by npm / vite / wrangler — not in a clean checkout)
+node_modules/
+dist/
+.wrangler/
+
+# Secrets — local key file only; never commit
+.dev.vars*
+
+# Local tooling / scratch
+output/
+.playwright-cli/
+*.log
+.DS_Store

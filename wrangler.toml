@@ -1,0 +1,12 @@
+name = "jevmoji"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Vite plugin owns asset build output (do not set [assets] directory).
+[assets]
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+# Secret: npx wrangler secret put TYPESAFE_API_KEY
+# Local: .dev.vars
