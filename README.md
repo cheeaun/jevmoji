@@ -11,9 +11,7 @@
 
 **Live:** https://jevmoji.cheeaun.workers.dev
 
-![Empty state](docs/screenshots/empty-state.png)
-
-![Results for “smiling face”](docs/screenshots/results.png)
+<img width="320" src="docs/screenshots/empty-state.png" alt="Empty state"> <img width="320" src="docs/screenshots/results.png" alt="Results for “smiling face”">
 
 ## Score trace: “hits”
 
